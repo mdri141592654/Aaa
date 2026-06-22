@@ -4,7 +4,6 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Signal Scan – Bedingungs-Backtest</title>
-<meta name="description" content="Durchsucht historische Kursdaten nach Indikator-Bedingungen und zeigt den durchschnittlichen Kursverlauf danach." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
@@ -23,46 +22,65 @@
   <div id="dataGenerated" class="data-generated"></div>
 </header>
 
-<main class="layout">
+<nav class="tabs" role="tablist">
+  <button class="tab-btn active" data-tab="manual" role="tab">Manueller Scan</button>
+  <button class="tab-btn" data-tab="auto" role="tab">⚡ Auto-Suche</button>
+</nav>
 
-  <section class="panel config-panel">
-    <div class="field-group">
-      <label for="symbolSelect">Markt</label>
-      <select id="symbolSelect"></select>
-    </div>
+<!-- Tab: Manueller Scan -->
+<div id="tab-manual" class="tab-content active">
+  <main class="layout">
 
-    <div class="field-group">
-      <label for="timeframeSelect">Zeiteinheit</label>
-      <select id="timeframeSelect"></select>
-    </div>
+    <section class="panel config-panel">
+      <div class="field-group">
+        <label for="symbolSelect">Markt</label>
+        <select id="symbolSelect"></select>
+      </div>
+      <div class="field-group">
+        <label for="timeframeSelect">Zeiteinheit</label>
+        <select id="timeframeSelect"></select>
+      </div>
+      <p id="dataMeta" class="data-meta"></p>
+      <div class="field-group">
+        <label for="forwardSteps">Prognose-Horizont (Kerzen nach Signal)</label>
+        <input type="number" id="forwardSteps" value="20" min="1" max="200" />
+      </div>
+      <h2 class="section-title">Bedingungen</h2>
+      <p class="hint">Alle Bedingungen müssen gleichzeitig auf derselben Kerze erfüllt sein.</p>
+      <div id="conditionsList"></div>
+      <button id="addConditionBtn" type="button" class="btn-ghost">+ Indikator hinzufügen</button>
+      <button id="scanBtn" type="button" class="btn-primary">Scan starten</button>
+      <p id="statusMsg" class="status" role="status"></p>
+    </section>
 
-    <p id="dataMeta" class="data-meta"></p>
+    <section class="panel results-panel" id="resultsPanel">
+      <div class="empty-state">
+        <p>Markt, Zeiteinheit und Bedingungen wählen, dann <strong>Scan starten</strong>.</p>
+        <p class="empty-state-sub">Es wird die gesamte verfügbare Historie durchsucht.</p>
+      </div>
+    </section>
 
-    <div class="field-group">
-      <label for="forwardSteps">Prognose-Horizont (Kerzen nach Signal)</label>
-      <input type="number" id="forwardSteps" value="20" min="1" max="200" />
-    </div>
+  </main>
+</div>
 
-    <h2 class="section-title">Bedingungen</h2>
-    <p class="hint">Alle Bedingungen müssen gleichzeitig auf derselben Kerze erfüllt sein.</p>
-    <div id="conditionsList"></div>
-    <button id="addConditionBtn" type="button" class="btn-ghost">+ Indikator hinzufügen</button>
-
-    <button id="scanBtn" type="button" class="btn-primary">Scan starten</button>
-    <p id="statusMsg" class="status" role="status"></p>
-  </section>
-
-  <section class="panel results-panel" id="resultsPanel">
-    <div class="empty-state">
-      <p>Markt, Zeiteinheit und Bedingungen wählen, dann <strong>Scan starten</strong>.</p>
-      <p class="empty-state-sub">Es wird die gesamte verfügbare Historie durchsucht.</p>
-    </div>
-  </section>
-
-</main>
+<!-- Tab: Auto-Suche -->
+<div id="tab-auto" class="tab-content">
+  <main class="layout auto-layout">
+    <section class="panel config-panel" id="autoConfigPanel">
+      <!-- wird von app.js befüllt -->
+    </section>
+    <section class="panel" id="autoResultsPanel">
+      <div class="empty-state">
+        <p>Indikatoren wählen und <strong>Suche starten</strong>.</p>
+        <p class="empty-state-sub">Das System testet automatisch alle Bedingungskombinationen und validiert sie per Walk-Forward-Test (2/3 In-Sample · 1/3 Out-of-Sample).</p>
+      </div>
+    </section>
+  </main>
+</div>
 
 <footer class="footer">
-  Kursdaten via Yahoo&nbsp;Finance (yfinance), automatisch aktualisiert über GitHub&nbsp;Actions. Keine Anlageberatung – statistische Auswertung der Vergangenheit, keine Garantie für die Zukunft.
+  Kursdaten via Yahoo&nbsp;Finance (yfinance), automatisch aktualisiert über GitHub&nbsp;Actions.
+  Keine Anlageberatung – statistische Auswertung der Vergangenheit, keine Garantie für die Zukunft.
 </footer>
 
 <template id="conditionRowTemplate">
