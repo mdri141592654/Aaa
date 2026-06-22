@@ -23,8 +23,8 @@ let rowCounter = 0;
 const OPERATORS_NUMERIC = [
   { value: "gte", label: "≥ größer/gleich" },
   { value: "lte", label: "≤ kleiner/gleich" },
-  { value: "gt", label: "> größer" },
-  { value: "lt", label: "< kleiner" },
+  { value: "gt",  label: "> größer" },
+  { value: "lt",  label: "< kleiner" },
   { value: "between", label: "zwischen" },
 ];
 
@@ -37,14 +37,10 @@ async function init() {
   }
 
   const symbols = Object.keys(manifest.symbols || {});
-  if (symbols.length === 0) {
-    showEmptyDataWarning();
-    return;
-  }
+  if (symbols.length === 0) { showEmptyDataWarning(); return; }
 
   dataGenerated.textContent = manifest.generated_at
-    ? "Daten aktualisiert: " + formatTimestamp(manifest.generated_at)
-    : "";
+    ? "Daten aktualisiert: " + formatTimestamp(manifest.generated_at) : "";
 
   symbolSelect.innerHTML = symbols.map((s) => `<option value="${s}">${s}</option>`).join("");
   symbolSelect.addEventListener("change", refreshTimeframeOptions);
@@ -53,7 +49,6 @@ async function init() {
 
   addConditionBtn.addEventListener("click", () => addConditionRow());
   scanBtn.addEventListener("click", handleScan);
-
   addConditionRow("regime");
 }
 
@@ -74,31 +69,30 @@ function refreshTimeframeOptions() {
   const sym = symbolSelect.value;
   const tfs = Object.keys(manifest.symbols[sym]?.timeframes || {});
   const order = ["1d", "1h", "5m"];
-  const sorted = order.filter((tf) => tfs.includes(tf));
-  timeframeSelect.innerHTML = sorted
+  timeframeSelect.innerHTML = order
+    .filter((tf) => tfs.includes(tf))
     .map((tf) => `<option value="${tf}">${TIMEFRAME_LABELS[tf] || tf}</option>`)
     .join("");
   updateDataMeta();
 }
 
 function updateDataMeta() {
-  const sym = symbolSelect.value;
-  const tf = timeframeSelect.value;
-  const info = manifest.symbols[sym]?.timeframes?.[tf];
-  if (!info) { dataMeta.textContent = ""; return; }
-  dataMeta.textContent = `${info.bars.toLocaleString("de-DE")} Kerzen · ${formatTimestamp(info.from)} – ${formatTimestamp(info.to)}`;
+  const info = manifest.symbols[symbolSelect.value]?.timeframes?.[timeframeSelect.value];
+  dataMeta.textContent = info
+    ? `${info.bars.toLocaleString("de-DE")} Kerzen · ${formatTimestamp(info.from)} – ${formatTimestamp(info.to)}`
+    : "";
 }
+
+// --------------------------------------------------------- Condition rows
 
 function addConditionRow(defaultIndicatorId) {
   rowCounter += 1;
-  const id = "row" + rowCounter;
   const node = rowTemplate.content.firstElementChild.cloneNode(true);
-  node.dataset.rowId = id;
+  node.dataset.rowId = "row" + rowCounter;
 
   const indicatorSelect = node.querySelector(".indicator-select");
   indicatorSelect.innerHTML = Object.values(INDICATOR_REGISTRY)
-    .map((def) => `<option value="${def.id}">${def.label}</option>`)
-    .join("");
+    .map((def) => `<option value="${def.id}">${def.label}</option>`).join("");
   indicatorSelect.value = defaultIndicatorId || Object.keys(INDICATOR_REGISTRY)[0];
 
   indicatorSelect.addEventListener("change", () => renderRowBody(node));
@@ -109,24 +103,18 @@ function addConditionRow(defaultIndicatorId) {
 }
 
 function renderRowBody(node) {
-  const indicatorId = node.querySelector(".indicator-select").value;
-  const def = INDICATOR_REGISTRY[indicatorId];
+  const def = INDICATOR_REGISTRY[node.querySelector(".indicator-select").value];
 
-  const paramsRow = node.querySelector(".params-row");
-  paramsRow.innerHTML = def.params
-    .map(
-      (p) => `
-      <div class="param-field">
-        <label>${p.label}</label>
-        <input type="number" class="param-input" data-key="${p.key}"
-               value="${p.default}" min="${p.min}" max="${p.max}" step="1" />
-      </div>`
-    )
-    .join("");
+  node.querySelector(".params-row").innerHTML = def.params.map((p) => `
+    <div class="param-field">
+      <label>${p.label}</label>
+      <input type="number" class="param-input" data-key="${p.key}"
+             value="${p.default}" min="${p.min}" max="${p.max}" step="1" />
+    </div>`).join("");
 
-  const conditionControl = node.querySelector(".condition-control");
+  const cc = node.querySelector(".condition-control");
   if (def.valueType === "category") {
-    conditionControl.innerHTML = `
+    cc.innerHTML = `
       <div>
         <label>Bedingung</label>
         <select class="cond-category">
@@ -134,7 +122,7 @@ function renderRowBody(node) {
         </select>
       </div>`;
   } else {
-    conditionControl.innerHTML = `
+    cc.innerHTML = `
       <div>
         <label>Vergleich</label>
         <select class="cond-op">
@@ -149,36 +137,33 @@ function renderRowBody(node) {
         <label>bis</label>
         <input type="number" class="cond-value2" step="0.1" value="0" />
       </div>`;
-    const opSelect = conditionControl.querySelector(".cond-op");
-    const value2Wrap = conditionControl.querySelector(".cond-value2-wrap");
+    const opSelect = cc.querySelector(".cond-op");
+    const v2wrap = cc.querySelector(".cond-value2-wrap");
     opSelect.addEventListener("change", () => {
-      value2Wrap.style.display = opSelect.value === "between" ? "" : "none";
+      v2wrap.style.display = opSelect.value === "between" ? "" : "none";
     });
   }
 }
 
 function readConditionRows() {
-  const rows = Array.from(conditionsList.querySelectorAll(".condition-row"));
-  return rows.map((node) => {
+  return Array.from(conditionsList.querySelectorAll(".condition-row")).map((node) => {
     const indicatorId = node.querySelector(".indicator-select").value;
     const def = INDICATOR_REGISTRY[indicatorId];
     const params = {};
-    node.querySelectorAll(".param-input").forEach((inp) => {
-      params[inp.dataset.key] = Number(inp.value);
-    });
-
+    node.querySelectorAll(".param-input").forEach((inp) => { params[inp.dataset.key] = Number(inp.value); });
     let condition;
     if (def.valueType === "category") {
       condition = { op: "eq", value: node.querySelector(".cond-category").value };
     } else {
       const op = node.querySelector(".cond-op").value;
-      const value = Number(node.querySelector(".cond-value").value);
-      const value2 = Number(node.querySelector(".cond-value2")?.value ?? 0);
-      condition = { op, value, value2 };
+      condition = { op, value: Number(node.querySelector(".cond-value").value),
+                    value2: Number(node.querySelector(".cond-value2")?.value ?? 0) };
     }
     return { id: indicatorId, params, condition };
   });
 }
+
+// --------------------------------------------------------------- Scan
 
 async function getBars(symbol, timeframe) {
   const key = symbol + "_" + timeframe;
@@ -196,18 +181,14 @@ async function handleScan() {
   const forwardSteps = Math.max(1, Number(forwardStepsInput.value) || 20);
   const indicatorConfigs = readConditionRows();
 
-  if (indicatorConfigs.length === 0) {
-    setStatus("Mindestens einen Indikator hinzufügen.", true);
-    return;
-  }
+  if (indicatorConfigs.length === 0) { setStatus("Mindestens einen Indikator hinzufügen.", true); return; }
 
   setStatus("Lade Daten und scanne …", false);
   scanBtn.disabled = true;
   try {
     const bars = await getBars(symbol, timeframe);
     if (!bars || bars.length < forwardSteps + 20) {
-      setStatus("Zu wenig historische Daten für diesen Zeitraum.", true);
-      return;
+      setStatus("Zu wenig historische Daten für diesen Zeitraum.", true); return;
     }
     const result = runScan(bars, indicatorConfigs, forwardSteps);
     renderResults(result, forwardSteps, timeframe, symbol);
@@ -225,9 +206,15 @@ function setStatus(text, isError) {
   statusMsg.classList.toggle("error", !!isError);
 }
 
+// ---------------------------------------------------------- Rendering
+
 function renderResults(result, forwardSteps, timeframe, symbol) {
   const final = result.avgPath[forwardSteps];
   const finalClass = final > 0.02 ? "positive" : final < -0.02 ? "negative" : "";
+  const medClass = result.median > 0.02 ? "positive" : result.median < -0.02 ? "negative" : "";
+  const pfVal = result.profitFactor;
+  const pfClass = pfVal === null ? "" : pfVal >= 1 ? "positive" : "negative";
+  const evClass = result.expectedValue > 0.02 ? "positive" : result.expectedValue < -0.02 ? "negative" : "";
 
   resultsPanel.innerHTML = `
     <div class="stat-grid">
@@ -240,8 +227,28 @@ function renderResults(result, forwardSteps, timeframe, symbol) {
         <div class="stat-value ${finalClass}">${formatPct(final)}</div>
       </div>
       <div class="stat-card">
+        <div class="stat-label">Median Return</div>
+        <div class="stat-value ${medClass}">${formatPct(result.median)}</div>
+      </div>
+      <div class="stat-card">
         <div class="stat-label">Trefferquote (positiv)</div>
         <div class="stat-value">${result.winRate !== null ? result.winRate.toFixed(1) + "%" : "–"}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Größter Gewinn</div>
+        <div class="stat-value positive">${formatPct(result.maxGain)}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Größter Verlust</div>
+        <div class="stat-value negative">${formatPct(result.maxLoss)}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Profit Factor</div>
+        <div class="stat-value ${pfClass}">${pfVal !== null ? pfVal.toFixed(2) : "–"}</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Erwartungswert / Trade</div>
+        <div class="stat-value ${evClass}">${formatPct(result.expectedValue)}</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Offene Signale</div>
@@ -264,7 +271,6 @@ function renderResults(result, forwardSteps, timeframe, symbol) {
 
   const canvas = document.getElementById("forwardChart");
   drawForwardChart(canvas, result, forwardSteps);
-
   let resizeTimer;
   window.addEventListener("resize", () => {
     clearTimeout(resizeTimer);
@@ -273,25 +279,27 @@ function renderResults(result, forwardSteps, timeframe, symbol) {
 }
 
 function formatSignalsList(result) {
-  const allDates = [...result.matchDates.map((t) => [t, false]), ...result.openSignals.map((t) => [t, true])];
-  allDates.sort((a, b) => (a[0] < b[0] ? 1 : -1));
-  const shown = allDates.slice(0, 60);
-  if (shown.length === 0) return "Keine Treffer.";
-  return shown
-    .map(([t, open]) => formatTimestamp(t) + (open ? '<span class="open-tag">offen (noch keine 20 Kerzen danach)</span>' : ""))
-    .join("<br/>");
+  const all = [
+    ...result.matchDates.map((t) => [t, false]),
+    ...result.openSignals.map((t) => [t, true]),
+  ].sort((a, b) => (a[0] < b[0] ? 1 : -1)).slice(0, 60);
+  if (all.length === 0) return "Keine Treffer.";
+  return all.map(([t, open]) =>
+    formatTimestamp(t) + (open ? '<span class="open-tag">offen (noch keine 20 Kerzen danach)</span>' : "")
+  ).join("<br/>");
 }
 
 function formatPct(v) {
   if (v === null || v === undefined) return "–";
-  const sign = v > 0 ? "+" : "";
-  return sign + v.toFixed(2) + "%";
+  return (v > 0 ? "+" : "") + v.toFixed(2) + "%";
 }
 
 function formatTimestamp(iso) {
   if (!iso) return "";
-  const d = new Date(iso);
-  return d.toLocaleString("de-DE", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleString("de-DE", {
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit",
+  });
 }
 
 init();
