@@ -271,13 +271,23 @@ function formatSignalsList(result) {
 // ================================================== Auto-Search: Init
 
 function initAutoSearch() {
+  const symbols = Object.keys(manifest.symbols || {});
+  const symbolOptions = symbols.map(s => `<option value="${s}">${s}</option>`).join("");
+
   autoConfigPanel.innerHTML = `
     <h2 class="section-title" style="margin-top:0">Auto-Suche</h2>
-    <p class="hint" style="margin-bottom:1rem">
-      Nutzt Markt &amp; Zeiteinheit vom Manuellen Scan.<br>
-      Das System leitet Schwellenwerte automatisch aus den In-Sample-Daten ab
-      (Perzentile) und validiert die besten Kombinationen auf unbekannten Daten.
-    </p>
+
+    <div class="field-group">
+      <label for="autoSymbolSelect">Markt</label>
+      <select id="autoSymbolSelect">${symbolOptions}</select>
+    </div>
+
+    <div class="field-group">
+      <label for="autoTimeframeSelect">Zeiteinheit</label>
+      <select id="autoTimeframeSelect"></select>
+    </div>
+
+    <p id="autoDataMeta" class="data-meta"></p>
 
     <div class="field-group">
       <label>Suchtiefe – max. gleichzeitige Indikatoren</label>
@@ -325,14 +335,39 @@ function initAutoSearch() {
 
     <div id="autoProgress" style="display:none;margin-top:0.75rem">
       <div style="background:var(--panel-border);border-radius:6px;height:4px;overflow:hidden">
-        <div id="autoProgressBar" style="height:100%;background:var(--accent);width:0%;transition:width 0.4s ease"></div>
+        <div id="autoProgressBar"
+          style="height:100%;background:var(--accent);width:0%;transition:width 0.4s ease"></div>
       </div>
       <p class="hint" id="autoProgressLabel" style="margin:0.3rem 0 0">Bitte warten …</p>
     </div>
 
     <p id="autoStatus" class="status" role="status"></p>`;
 
-  // Kombinations-Schätzung aktualisieren
+  const refreshAutoTF = () => {
+    const sym = document.getElementById("autoSymbolSelect").value;
+    const tfs = Object.keys(manifest.symbols[sym]?.timeframes || {});
+    const order = ["1d", "1h", "5m"];
+    document.getElementById("autoTimeframeSelect").innerHTML = order
+      .filter(tf => tfs.includes(tf))
+      .map(tf => `<option value="${tf}">${TIMEFRAME_LABELS[tf] || tf}</option>`)
+      .join("");
+    updateAutoDataMeta();
+  };
+
+  const updateAutoDataMeta = () => {
+    const sym  = document.getElementById("autoSymbolSelect")?.value;
+    const tf   = document.getElementById("autoTimeframeSelect")?.value;
+    const info = manifest.symbols[sym]?.timeframes?.[tf];
+    const el   = document.getElementById("autoDataMeta");
+    if (el) el.textContent = info
+      ? `${info.bars.toLocaleString("de-DE")} Kerzen · ${formatTimestamp(info.from)} – ${formatTimestamp(info.to)}`
+      : "";
+  };
+
+  document.getElementById("autoSymbolSelect").addEventListener("change", refreshAutoTF);
+  document.getElementById("autoTimeframeSelect").addEventListener("change", updateAutoDataMeta);
+  refreshAutoTF();
+
   const updateEstimate = () => {
     const n = document.querySelectorAll(".auto-ind-cb:checked").length;
     const d = Number(document.getElementById("autoDepth").value);
@@ -357,11 +392,12 @@ function initAutoSearch() {
   updateEstimate();
 }
 
+
 // =============================================== Auto-Search: Handler
 
 async function handleAutoSearch() {
-  const symbol      = symbolSelect.value;
-  const timeframe   = timeframeSelect.value;
+  const symbol      = document.getElementById("autoSymbolSelect").value;
+  const timeframe   = document.getElementById("autoTimeframeSelect").value;
   const maxDepth    = Number(document.getElementById("autoDepth").value);
   const forwardSteps = Number(document.getElementById("autoForward").value);
   const minSamples  = Number(document.getElementById("autoMinSamples").value);
