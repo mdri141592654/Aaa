@@ -2,19 +2,20 @@
 import { INDICATOR_REGISTRY, runScan } from "./indicators.js";
 import { drawForwardChart } from "./chart.js";
 import { runAutoSearch, rate, estimateCombos } from "./auto_search.js";
+import { initTodayTab } from "./today_tab.js";
 
-const symbolSelect    = document.getElementById("symbolSelect");
-const timeframeSelect = document.getElementById("timeframeSelect");
-const dataMeta        = document.getElementById("dataMeta");
-const dataGenerated   = document.getElementById("dataGenerated");
+const symbolSelect     = document.getElementById("symbolSelect");
+const timeframeSelect  = document.getElementById("timeframeSelect");
+const dataMeta         = document.getElementById("dataMeta");
+const dataGenerated    = document.getElementById("dataGenerated");
 const forwardStepsInput = document.getElementById("forwardSteps");
-const conditionsList  = document.getElementById("conditionsList");
-const addConditionBtn = document.getElementById("addConditionBtn");
-const scanBtn         = document.getElementById("scanBtn");
-const statusMsg       = document.getElementById("statusMsg");
-const resultsPanel    = document.getElementById("resultsPanel");
-const rowTemplate     = document.getElementById("conditionRowTemplate");
-const autoConfigPanel = document.getElementById("autoConfigPanel");
+const conditionsList   = document.getElementById("conditionsList");
+const addConditionBtn  = document.getElementById("addConditionBtn");
+const scanBtn          = document.getElementById("scanBtn");
+const statusMsg        = document.getElementById("statusMsg");
+const resultsPanel     = document.getElementById("resultsPanel");
+const rowTemplate      = document.getElementById("conditionRowTemplate");
+const autoConfigPanel  = document.getElementById("autoConfigPanel");
 const autoResultsPanel = document.getElementById("autoResultsPanel");
 
 const TIMEFRAME_LABELS = { "1d": "1 Tag", "1h": "1 Stunde", "5m": "5 Minuten" };
@@ -66,6 +67,10 @@ async function init() {
     });
   });
 
+  // Today-Tab initialisieren
+  initTodayTab({ manifest, getBars });
+
+  // Auto-Such-Tab initialisieren
   initAutoSearch();
 }
 
@@ -75,15 +80,17 @@ function showEmptyDataWarning() {
   resultsPanel.innerHTML = `
     <div class="empty-state">
       <p><strong>Noch keine Kursdaten vorhanden.</strong></p>
-      <p class="empty-state-sub">Im GitHub-Repo unter <em>Actions → Update market data → Run workflow</em> einmal manuell starten.</p>
+      <p class="empty-state-sub">Im GitHub-Repo unter
+        <em>Actions → Update market data → Run workflow</em> einmal manuell starten.
+      </p>
     </div>`;
   scanBtn.disabled = true;
   addConditionBtn.disabled = true;
 }
 
 function refreshTimeframeOptions() {
-  const sym = symbolSelect.value;
-  const tfs = Object.keys(manifest.symbols[sym]?.timeframes || {});
+  const sym  = symbolSelect.value;
+  const tfs  = Object.keys(manifest.symbols[sym]?.timeframes || {});
   const order = ["1d", "1h", "5m"];
   timeframeSelect.innerHTML = order
     .filter(tf => tfs.includes(tf))
@@ -133,14 +140,16 @@ function renderRowBody(node) {
       <div>
         <label>Bedingung</label>
         <select class="cond-category">
-          ${def.categories.map(c => `<option value="${c.value}">ist ${c.label}</option>`).join("")}
+          ${def.categories.map(c =>
+            `<option value="${c.value}">ist ${c.label}</option>`).join("")}
         </select>
       </div>`;
   } else {
     cc.innerHTML = `
       <div><label>Vergleich</label>
         <select class="cond-op">
-          ${OPERATORS_NUMERIC.map(o => `<option value="${o.value}">${o.label}</option>`).join("")}
+          ${OPERATORS_NUMERIC.map(o =>
+            `<option value="${o.value}">${o.label}</option>`).join("")}
         </select>
       </div>
       <div><label>Wert</label>
@@ -152,13 +161,15 @@ function renderRowBody(node) {
       </div>`;
     const op = cc.querySelector(".cond-op");
     const v2 = cc.querySelector(".cond-value2-wrap");
-    op.addEventListener("change", () => { v2.style.display = op.value === "between" ? "" : "none"; });
+    op.addEventListener("change", () => {
+      v2.style.display = op.value === "between" ? "" : "none";
+    });
   }
 }
 
 function readConditionRows() {
   return Array.from(conditionsList.querySelectorAll(".condition-row")).map(node => {
-    const id = node.querySelector(".indicator-select").value;
+    const id  = node.querySelector(".indicator-select").value;
     const def = INDICATOR_REGISTRY[id];
     const params = {};
     node.querySelectorAll(".param-input").forEach(i => { params[i.dataset.key] = Number(i.value); });
@@ -167,8 +178,9 @@ function readConditionRows() {
       condition = { op: "eq", value: node.querySelector(".cond-category").value };
     } else {
       const op = node.querySelector(".cond-op").value;
-      condition = { op, value: Number(node.querySelector(".cond-value").value),
-                    value2: Number(node.querySelector(".cond-value2")?.value ?? 0) };
+      condition = { op,
+        value:  Number(node.querySelector(".cond-value").value),
+        value2: Number(node.querySelector(".cond-value2")?.value ?? 0) };
     }
     return { id, params, condition };
   });
@@ -187,20 +199,24 @@ async function getBars(symbol, timeframe) {
 }
 
 async function handleScan() {
-  const symbol      = symbolSelect.value;
-  const timeframe   = timeframeSelect.value;
+  const symbol       = symbolSelect.value;
+  const timeframe    = timeframeSelect.value;
   const forwardSteps = Math.max(1, Number(forwardStepsInput.value) || 20);
-  const configs     = readConditionRows();
+  const configs      = readConditionRows();
   if (!configs.length) { setStatus("Mindestens einen Indikator hinzufügen.", true); return; }
 
   setStatus("Lade Daten und scanne …", false);
   scanBtn.disabled = true;
   try {
     const bars = await getBars(symbol, timeframe);
-    if (!bars || bars.length < forwardSteps + 20) { setStatus("Zu wenig historische Daten.", true); return; }
+    if (!bars || bars.length < forwardSteps + 20) {
+      setStatus("Zu wenig historische Daten.", true); return;
+    }
     const result = runScan(bars, configs, forwardSteps);
     renderResults(result, forwardSteps, timeframe, symbol);
-    setStatus(`Fertig: ${result.sampleSize} Treffer in ${result.totalBars.toLocaleString("de-DE")} Kerzen.`, false);
+    setStatus(
+      `Fertig: ${result.sampleSize} Treffer in ${result.totalBars.toLocaleString("de-DE")} Kerzen.`,
+      false);
   } catch (e) {
     console.error(e); setStatus("Fehler: " + e.message, true);
   } finally {
@@ -224,25 +240,32 @@ function renderResults(result, forwardSteps, timeframe, symbol) {
       <div class="stat-card"><div class="stat-label">Treffer</div>
         <div class="stat-value">${result.sampleSize}</div></div>
       <div class="stat-card"><div class="stat-label">Ø Return nach ${forwardSteps} Kerzen</div>
-        <div class="stat-value ${fc(result.avgPath[forwardSteps])}">${formatPct(result.avgPath[forwardSteps])}</div></div>
+        <div class="stat-value ${fc(result.avgPath[forwardSteps])}">
+          ${formatPct(result.avgPath[forwardSteps])}</div></div>
       <div class="stat-card"><div class="stat-label">Median Return</div>
         <div class="stat-value ${fc(result.median)}">${formatPct(result.median)}</div></div>
       <div class="stat-card"><div class="stat-label">Trefferquote (positiv)</div>
-        <div class="stat-value">${result.winRate !== null ? result.winRate.toFixed(1) + "%" : "–"}</div></div>
+        <div class="stat-value">
+          ${result.winRate !== null ? result.winRate.toFixed(1) + "%" : "–"}</div></div>
       <div class="stat-card"><div class="stat-label">Größter Gewinn</div>
         <div class="stat-value positive">${formatPct(result.maxGain)}</div></div>
       <div class="stat-card"><div class="stat-label">Größter Verlust</div>
         <div class="stat-value negative">${formatPct(result.maxLoss)}</div></div>
       <div class="stat-card"><div class="stat-label">Profit Factor</div>
-        <div class="stat-value ${pf !== null && pf >= 1 ? "positive" : "negative"}">${pf !== null ? pf.toFixed(2) : "–"}</div></div>
+        <div class="stat-value ${pf !== null && pf >= 1 ? "positive" : "negative"}">
+          ${pf !== null ? pf.toFixed(2) : "–"}</div></div>
       <div class="stat-card"><div class="stat-label">Erwartungswert / Trade</div>
-        <div class="stat-value ${fc(result.expectedValue)}">${formatPct(result.expectedValue)}</div></div>
+        <div class="stat-value ${fc(result.expectedValue)}">
+          ${formatPct(result.expectedValue)}</div></div>
       <div class="stat-card"><div class="stat-label">Offene Signale</div>
         <div class="stat-value">${result.openSignals.length}</div></div>
     </div>
     <div class="chart-wrap">
       <canvas id="forwardChart"></canvas>
-      <p class="chart-caption">Durchschnittlicher %-Kursverlauf nach Signal (dicke Linie) · jede dünne Linie ist ein einzelner Treffer · Band = ±1 Std.-Abw.</p>
+      <p class="chart-caption">
+        Durchschnittlicher %-Kursverlauf nach Signal (dicke Linie) ·
+        jede dünne Linie ist ein einzelner Treffer · Band = ±1 Std.-Abw.
+      </p>
     </div>
     <div class="signals-section">
       <h3>Letzte Trefferdaten (${symbol}, ${TIMEFRAME_LABELS[timeframe] || timeframe})</h3>
@@ -260,11 +283,12 @@ function renderResults(result, forwardSteps, timeframe, symbol) {
 
 function formatSignalsList(result) {
   const all = [
-    ...result.matchDates.map(t => [t, false]),
+    ...result.matchDates.map(t  => [t, false]),
     ...result.openSignals.map(t => [t, true]),
   ].sort((a, b) => a[0] < b[0] ? 1 : -1).slice(0, 60);
   return all.length === 0 ? "Keine Treffer." : all
-    .map(([t, open]) => formatTimestamp(t) + (open ? '<span class="open-tag">offen</span>' : ""))
+    .map(([t, open]) =>
+      formatTimestamp(t) + (open ? '<span class="open-tag">offen</span>' : ""))
     .join("<br/>");
 }
 
@@ -272,14 +296,19 @@ function formatSignalsList(result) {
 
 function initAutoSearch() {
   const symbols = Object.keys(manifest.symbols || {});
-  const symbolOptions = symbols.map(s => `<option value="${s}">${s}</option>`).join("");
 
   autoConfigPanel.innerHTML = `
     <h2 class="section-title" style="margin-top:0">Auto-Suche</h2>
+    <p class="hint" style="margin-bottom:1rem">
+      Das System testet alle Kombinationen und validiert per Walk-Forward
+      (2/3 In-Sample · 1/3 Out-of-Sample).
+    </p>
 
     <div class="field-group">
       <label for="autoSymbolSelect">Markt</label>
-      <select id="autoSymbolSelect">${symbolOptions}</select>
+      <select id="autoSymbolSelect">
+        ${symbols.map(s => `<option value="${s}">${s}</option>`).join("")}
+      </select>
     </div>
 
     <div class="field-group">
@@ -294,7 +323,7 @@ function initAutoSearch() {
       <select id="autoDepth">
         <option value="1">1 – Einzel-Bedingungen</option>
         <option value="2" selected>2 – alle Paare</option>
-        <option value="3">3 – alle Tripel (mehr Kombinationen)</option>
+        <option value="3">3 – alle Tripel</option>
       </select>
     </div>
 
@@ -304,7 +333,7 @@ function initAutoSearch() {
     </div>
 
     <div class="field-group">
-      <label for="autoMinSamples">Min. Treffer im In-Sample (Qualitätsfilter)</label>
+      <label for="autoMinSamples">Min. Treffer im In-Sample</label>
       <input type="number" id="autoMinSamples" value="20" min="5" max="200" />
     </div>
 
@@ -327,16 +356,17 @@ function initAutoSearch() {
         </label>`).join("")}
     </div>
 
-    <p id="autoEstimate" class="hint" style="margin-top:0.5rem;font-family:var(--font-mono)"></p>
+    <p id="autoEstimate" class="hint"
+      style="margin-top:0.5rem;font-family:var(--font-mono)"></p>
 
-    <button type="button" class="btn-primary" id="autoSearchBtn" style="margin-top:0.75rem">
-      Suche starten
-    </button>
+    <button type="button" class="btn-primary" id="autoSearchBtn"
+      style="margin-top:0.75rem">Suche starten</button>
 
     <div id="autoProgress" style="display:none;margin-top:0.75rem">
       <div style="background:var(--panel-border);border-radius:6px;height:4px;overflow:hidden">
         <div id="autoProgressBar"
-          style="height:100%;background:var(--accent);width:0%;transition:width 0.4s ease"></div>
+          style="height:100%;background:var(--accent);width:0%;transition:width 0.4s ease">
+        </div>
       </div>
       <p class="hint" id="autoProgressLabel" style="margin:0.3rem 0 0">Bitte warten …</p>
     </div>
@@ -344,8 +374,8 @@ function initAutoSearch() {
     <p id="autoStatus" class="status" role="status"></p>`;
 
   const refreshAutoTF = () => {
-    const sym = document.getElementById("autoSymbolSelect").value;
-    const tfs = Object.keys(manifest.symbols[sym]?.timeframes || {});
+    const sym  = document.getElementById("autoSymbolSelect").value;
+    const tfs  = Object.keys(manifest.symbols[sym]?.timeframes || {});
     const order = ["1d", "1h", "5m"];
     document.getElementById("autoTimeframeSelect").innerHTML = order
       .filter(tf => tfs.includes(tf))
@@ -364,19 +394,17 @@ function initAutoSearch() {
       : "";
   };
 
-  document.getElementById("autoSymbolSelect").addEventListener("change", refreshAutoTF);
-  document.getElementById("autoTimeframeSelect").addEventListener("change", updateAutoDataMeta);
-  refreshAutoTF();
-
   const updateEstimate = () => {
-    const n = document.querySelectorAll(".auto-ind-cb:checked").length;
-    const d = Number(document.getElementById("autoDepth").value);
+    const n   = document.querySelectorAll(".auto-ind-cb:checked").length;
+    const d   = Number(document.getElementById("autoDepth").value);
     const est = estimateCombos(n, d);
-    const el = document.getElementById("autoEstimate");
+    const el  = document.getElementById("autoEstimate");
     el.textContent = `≈ ${est.toLocaleString("de-DE")} Kombinationen`;
     el.style.color = est > 50000 ? "var(--bear)" : est > 5000 ? "var(--accent)" : "var(--muted)";
   };
 
+  document.getElementById("autoSymbolSelect").addEventListener("change", refreshAutoTF);
+  document.getElementById("autoTimeframeSelect").addEventListener("change", updateAutoDataMeta);
   document.getElementById("autoCheckAll").addEventListener("click", () => {
     document.querySelectorAll(".auto-ind-cb").forEach(cb => cb.checked = true);
     updateEstimate();
@@ -385,25 +413,27 @@ function initAutoSearch() {
     document.querySelectorAll(".auto-ind-cb").forEach(cb => cb.checked = false);
     updateEstimate();
   });
-  document.querySelectorAll(".auto-ind-cb").forEach(cb => cb.addEventListener("change", updateEstimate));
+  document.querySelectorAll(".auto-ind-cb").forEach(cb =>
+    cb.addEventListener("change", updateEstimate));
   document.getElementById("autoDepth").addEventListener("change", updateEstimate);
   document.getElementById("autoSearchBtn").addEventListener("click", handleAutoSearch);
 
+  refreshAutoTF();
   updateEstimate();
 }
-
 
 // =============================================== Auto-Search: Handler
 
 async function handleAutoSearch() {
-  const symbol      = document.getElementById("autoSymbolSelect").value;
-  const timeframe   = document.getElementById("autoTimeframeSelect").value;
-  const maxDepth    = Number(document.getElementById("autoDepth").value);
+  const symbol       = document.getElementById("autoSymbolSelect").value;
+  const timeframe    = document.getElementById("autoTimeframeSelect").value;
+  const maxDepth     = Number(document.getElementById("autoDepth").value);
   const forwardSteps = Number(document.getElementById("autoForward").value);
-  const minSamples  = Number(document.getElementById("autoMinSamples").value);
+  const minSamples   = Number(document.getElementById("autoMinSamples").value);
 
-  const checkedIds = Array.from(document.querySelectorAll(".auto-ind-cb:checked")).map(cb => cb.value);
-  if (checkedIds.length < 1) { setAutoStatus("Mindestens einen Indikator wählen.", true); return; }
+  const checkedIds = Array.from(document.querySelectorAll(".auto-ind-cb:checked"))
+    .map(cb => cb.value);
+  if (!checkedIds.length) { setAutoStatus("Mindestens einen Indikator wählen.", true); return; }
 
   const selectedIndicators = checkedIds.map(id => {
     const def = INDICATOR_REGISTRY[id];
@@ -432,15 +462,11 @@ async function handleAutoSearch() {
 
     renderAutoResults(result, symbol, timeframe, forwardSteps, minSamples);
     setAutoStatus(
-      `${result.totalCombos.toLocaleString("de-DE")} Kombinationen getestet · ` +
+      `${result.totalCombos.toLocaleString("de-DE")} Kombinationen · ` +
       `${result.passed} bestanden IS-Filter · ` +
-      `Top ${result.results.length} per Walk-Forward validiert.`,
-      false
-    );
+      `Top ${result.results.length} validiert.`, false);
   } catch (e) {
-    console.error(e);
-    setAutoStatus("Fehler: " + e.message, true);
-    setProgress(false);
+    console.error(e); setAutoStatus("Fehler: " + e.message, true); setProgress(false);
   } finally {
     btn.disabled = false;
   }
@@ -469,27 +495,25 @@ function setProgress(visible, value = 0, label = "") {
 
 function renderAutoResults(result, symbol, timeframe, forwardSteps, minSamples) {
   const { results, split, n } = result;
-  const isBars  = split;
-  const oosBars = n - split;
 
   const rows = results.map((res, i) => {
     const desc = res.combo
       .map(c => `<span class="cond-tag">${c.indLabel}: ${c.condLabel}</span>`)
       .join(" <span style='color:var(--muted)'>+</span> ");
     const { is, oos } = res;
-    const r = rate(res);
-    const pctC = (v) => v > 0 ? "c-bull" : "c-bear";
-    const wrC  = (v) => v > 50 ? "c-bull" : "c-bear";
+    const r  = rate(res);
+    const pc = v => v > 0 ? "c-bull" : "c-bear";
+    const wc = v => v > 50 ? "c-bull" : "c-bear";
     return `
       <tr>
         <td class="td-num">${i + 1}</td>
         <td class="td-combo">${desc}</td>
         <td class="td-num">${is.n}</td>
-        <td class="td-num ${wrC(is.wr)}">${is.wr.toFixed(1)}%</td>
-        <td class="td-num ${pctC(is.ev)}">${formatPct(is.ev)}</td>
+        <td class="td-num ${wc(is.wr)}">${is.wr.toFixed(1)}%</td>
+        <td class="td-num ${pc(is.ev)}">${formatPct(is.ev)}</td>
         <td class="td-num">${oos ? oos.n : "–"}</td>
-        <td class="td-num ${oos ? wrC(oos.wr) : ""}">${oos ? oos.wr.toFixed(1) + "%" : "–"}</td>
-        <td class="td-num ${oos ? pctC(oos.ev) : ""}">${oos ? formatPct(oos.ev) : "–"}</td>
+        <td class="td-num ${oos ? wc(oos.wr) : ""}">${oos ? oos.wr.toFixed(1) + "%" : "–"}</td>
+        <td class="td-num ${oos ? pc(oos.ev) : ""}">${oos ? formatPct(oos.ev) : "–"}</td>
         <td><span class="badge ${r.cls}">${r.label}</span></td>
       </tr>`;
   }).join("");
@@ -498,17 +522,16 @@ function renderAutoResults(result, symbol, timeframe, forwardSteps, minSamples) 
     <div class="wf-info">
       <div class="wf-block">
         <div class="wf-label">In-Sample (2/3) · Suche</div>
-        <div class="wf-value">${isBars.toLocaleString("de-DE")} Kerzen</div>
+        <div class="wf-value">${split.toLocaleString("de-DE")} Kerzen</div>
         <div class="wf-sub">Kombination wird hier optimiert</div>
       </div>
       <div class="wf-sep">→</div>
       <div class="wf-block">
         <div class="wf-label">Out-of-Sample (1/3) · Validierung</div>
-        <div class="wf-value">${oosBars.toLocaleString("de-DE")} Kerzen</div>
+        <div class="wf-value">${(n - split).toLocaleString("de-DE")} Kerzen</div>
         <div class="wf-sub">Unbekannte Daten · kein Einfluss auf Suche</div>
       </div>
     </div>
-
     <div class="result-table-wrap">
       <table class="result-table">
         <thead>
@@ -522,8 +545,7 @@ function renderAutoResults(result, symbol, timeframe, forwardSteps, minSamples) 
         </thead>
         <tbody>
           ${rows || `<tr><td colspan="9" class="td-empty">
-            Keine Kombination hat den IS-Filter bestanden (min. ${minSamples} Treffer).<br>
-            Weniger Indikatoren wählen oder Mindesttreffer reduzieren.
+            Keine Kombination hat den IS-Filter bestanden (min. ${minSamples} Treffer).
           </td></tr>`}
         </tbody>
       </table>
